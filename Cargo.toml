@@ -1,0 +1,9 @@
+[package]
+name = "endpointsecurity"
+version = "0.1.0"
+authors = ["Mitchell Grenier <mitchell@confurious.io>"]
+edition = "2018"
+
+[dependencies]
+block = "0.1.6"
+libc = "0.2.0"
