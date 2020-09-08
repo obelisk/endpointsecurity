@@ -12,22 +12,9 @@ use std::sync::mpsc::Sender;
 
 use block::*;
 
-/*
-// Values of call enum
-use {
-    es_event_type_t_ES_EVENT_TYPE_AUTH_EXEC as ES_EVENT_AUTH_EXEC,
-    es_event_type_t_ES_EVENT_TYPE_AUTH_OPEN as ES_EVENT_AUTH_OPEN,
-    es_event_type_t_ES_EVENT_TYPE_NOTIFY_EXEC as ES_EVENT_NOTIFY_EXEC,
-    es_event_type_t_ES_EVENT_TYPE_NOTIFY_OPEN as ES_EVENT_NOTIFY_OPEN,
-    //es_event_type_t_ES_EVENT_TYPE_NOTIFY_FORK as ES_EVENT_NOTIFY_FORK,
-};
-*/
 // Values
 use {
     es_return_t_ES_RETURN_SUCCESS as ES_RETURN_SUCCESS,
-    
-    //es_result_type_t_ES_RESULT_TYPE_AUTH as ES_RESULT_TYPE_AUTH,
-    //es_result_type_t_ES_RESULT_TYPE_FLAGS as ES_RESULT_TYPE_FLAGS,
     
     es_auth_result_t_ES_AUTH_RESULT_ALLOW as ES_AUTH_RESULT_ALLOW,
     es_auth_result_t_ES_AUTH_RESULT_DENY as ES_AUTH_RESULT_DENY,
@@ -289,8 +276,8 @@ pub enum EsAuthResult {
     Allow,
     Deny,
 }
-/*
-enum EsResultType {
+
+pub enum EsResultType {
     Auth,
     Flags,
 }
@@ -301,21 +288,19 @@ pub struct EsEventId {
     pub reserved: [u8; 32usize],
 }
 
-pub struct EsResultResult {
-    auth: EsAuthResult,
-    flags: u32,
-    reserved: [u8; 32usize],
+pub struct EsResultNotifyResult {
+    pub flags: u32,
 }
 
 pub struct EsResult {
-    result_type: EsResultType,
-    result: EsResultResult,
+    pub result_type: EsResultType,
+    pub result: EsResultNotifyResult,
 }
 
-pub struct EsAction {
-    auth: EsEventId,
-    notify: EsResult,
-}*/
+pub enum EsAction {
+    Auth(EsEventId),
+    Notify(EsResult),
+}
 
 pub struct EsMessage {
     pub version: u32,
@@ -324,8 +309,8 @@ pub struct EsMessage {
     pub deadline: u64,
     pub process: EsProcess,
     pub seq_num: u64,
+    pub action: EsAction,
     pub action_type: EsActionType,
-    //action: EsAction,
     pub event: EsEvent,
     raw_message: *const es_message_t,
 }
@@ -339,11 +324,13 @@ fn raw_event_to_supportedesevent(event_type: u64) -> Option<SupportedEsEvent> {
     Some(match event_type {
         0 => SupportedEsEvent::AuthExec,
         1 => SupportedEsEvent::AuthOpen,
+        6 => SupportedEsEvent::AuthRename,
         7 => SupportedEsEvent::AuthSignal,
         8 => SupportedEsEvent::AuthUnlink,
         9 => SupportedEsEvent::NotifyExec,
         10 => SupportedEsEvent::NotifyOpen,
         19 => SupportedEsEvent::NotifyLink,
+        25 => SupportedEsEvent::NotifyRename,
         31 => SupportedEsEvent::NotifySignal,
         32 => SupportedEsEvent::NotifyUnlink,
         42 => SupportedEsEvent::AuthLink,
@@ -372,6 +359,23 @@ fn supportedesevent_to_raw_event(event_type: &SupportedEsEvent) -> u32 {
     }
 }
 
+fn parse_c_string(string_token: es_string_token_t) -> String {
+    match string_token.length {
+        x if x <= 0 => {
+            String::new()
+        },
+        _ => {
+            match unsafe { CStr::from_ptr(string_token.data).to_str() }{
+                Ok(v) => v.to_owned(),
+                Err(e) => {
+                    println!("String would not parse: {}", e);
+                    String::new()
+                }
+            }
+        },
+    }
+}
+
 fn parse_es_file_ptr(file: *mut es_file_t) -> EsFile {
     unsafe {
         let file = *file;
@@ -387,23 +391,6 @@ fn parse_es_file(file: &es_file_t) -> EsFile {
     EsFile {
         path: unsafe { CStr::from_ptr(file.path.data).to_str().unwrap().to_owned() },
         path_truncated: { file.path_truncated },
-    }
-}
-
-fn parse_c_string(string_token: es_string_token_t) -> String {
-    match string_token.length {
-        x if x <= 0 => {
-            String::new()
-        },
-        _ => {
-            match unsafe { CStr::from_ptr(string_token.data).to_str() }{
-                Ok(v) => v.to_owned(),
-                Err(e) => {
-                    println!("String would not parse: {}", e);
-                    String::new()
-                }
-            }
-        },
     }
 }
 
@@ -510,10 +497,35 @@ fn parse_es_event(event_type: SupportedEsEvent, event: es_events_t, action_type:
                 };
                 match action_type {
                     EsActionType::Notify => EsEvent::NotifyReadDir(event),
-                    EsActionType::Auth => EsEvent::NotifyReadDir(event),
+                    EsActionType::Auth => EsEvent::AuthReadDir(event),
                 }
             },
         }
+    }
+}
+
+fn parse_es_action(action: es_message_t__bindgen_ty_1, action_type: &EsActionType) -> Option<EsAction> {
+    unsafe {
+        Some(match action_type {
+            EsActionType::Auth => EsAction::Auth(EsEventId{
+                reserved: action.auth.reserved,
+            }),
+            EsActionType::Notify => EsAction::Notify(EsResult {
+                result_type: {
+                    match action.notify.result_type {
+                        0 => EsResultType::Auth,
+                        1 => EsResultType::Flags,
+                        _ => {
+                            println!("Result Type is broken");
+                            return None;   // At time of writing these are the only types
+                        }
+                    }
+                },
+                result: EsResultNotifyResult {
+                    flags: action.notify.result.flags,
+                }
+            })
+        })
     }
 }
 
@@ -530,6 +542,7 @@ fn parse_es_message(message: *mut es_message_t) -> Result<EsMessage, &'static st
         let event = if let Some(event) = raw_event_to_supportedesevent(message.event_type as u64) {
             parse_es_event(event, message.event, &action_type)
         } else {
+            println!("Error in this event type: {}", message.event_type as u64);
             return Err("Could not parse this event type");
         };
 
@@ -540,42 +553,18 @@ fn parse_es_message(message: *mut es_message_t) -> Result<EsMessage, &'static st
             deadline: message.deadline,
             process: parse_es_process(process),
             seq_num: message.seq_num,
+            action: match parse_es_action(message.action, &action_type) {
+                Some(x) => x,
+                None => return Err("Couldn't parse the action field"),
+            },
             action_type: action_type,
-            // This is a union field. Probably needs to be handled with an enum
-            // Maybe leaks kernel memory because notify is bigger than auth?
-            /*action: EsAction {
-                auth: EsEventId{
-                    reserved: message.action.auth.reserved,
-                },
-                notify: EsResult {
-                    result_type: {
-                        println!("The value is: {}", message.action.notify.result_type);
-                        match message.action.notify.result_type {
-                            ES_RESULT_TYPE_AUTH => EsResultType::Auth,
-                            ES_RESULT_TYPE_FLAGS => EsResultType::Flags,
-                            _ => return Err("Couldn't parse action notify result_type"),   // At time of writing these are the only types
-                        }
-                    },
-                    result: EsResultResult {
-                        auth: {
-                            match message.action.notify.result.auth {
-                                ES_AUTH_RESULT_ALLOW => EsAuthResult::Allow,
-                                ES_AUTH_RESULT_DENY => EsAuthResult::Deny,
-                                _ => return Err("Couldn't parse action notify result"), // At time of writing these are the only two
-                            }
-                        },
-                        flags: message.action.notify.result.flags,
-                        reserved: message.action.notify.result.reserved,
-                    }
-                }
-            },*/
             event: event,
             raw_message: message,
         })
     }
 }
 
-extern fn es_notify_callback(_client: *mut es_client_t, message: *mut es_message_t, tx: Sender<EsMessage>) {
+fn es_notify_callback(_client: *mut es_client_t, message: *mut es_message_t, tx: Sender<EsMessage>) {
     let message = match parse_es_message(message) {
         Err(e) => { println!("Could not parse message: {}", e); return},
         Ok(x) => x,
@@ -622,6 +611,27 @@ pub fn subscribe_to_events(client: &EsClient, events: &Vec<SupportedEsEvent>) ->
 
     unsafe {
         match es_subscribe(client.client, &c_events as *const u32, events.len() as u32) {
+            ES_RETURN_SUCCESS => true,
+            _ => false,
+        }
+    }
+}
+
+pub fn unsubscribe_to_events(client: &EsClient, events: &Vec<SupportedEsEvent>) -> bool {
+    if events.len() > 128 {
+        println!("Too many events to unsubscribe to!");
+        return false;
+    }
+
+    let mut c_events: [u32; 128] = [0; 128];
+    let mut i = 0;
+    for event in events {
+        c_events[i] = supportedesevent_to_raw_event(&*event);
+        i += 1;
+    }
+
+    unsafe {
+        match es_unsubscribe(client.client, &c_events as *const u32, events.len() as u32) {
             ES_RETURN_SUCCESS => true,
             _ => false,
         }
