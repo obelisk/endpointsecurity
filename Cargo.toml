@@ -6,4 +6,6 @@ edition = "2018"
 
 [dependencies]
 block = "0.1.6"
+env_logger = "0.7.1"
 libc = "0.2.0"
+log = "0.4.8"
