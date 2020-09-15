@@ -576,7 +576,7 @@ fn parse_es_message(message: *mut es_message_t) -> Result<EsMessage, &'static st
 
         Ok(EsMessage {
             version: message.version,
-            time: message.time.tv_nsec as u64,
+            time: message.time.tv_sec as u64,
             mach_time: message.mach_time,
             deadline: message.deadline,
             process: parse_es_process(process),
@@ -738,7 +738,7 @@ impl EsClient {
                 info!(target: "endpointsecurity-rs", "Adding subscriptions for: {}",
                     new_subscriptions.iter().fold(String::from(""), |acc, x| acc + &x.to_string() + ", "));
             }
-            
+
             if !remove_subscriptions.is_empty() {
                 info!(target: "endpointsecurity-rs", "Removing subscriptions for: {}",
                     remove_subscriptions.iter().fold(String::from(""), |acc, x| acc + &x.to_string() + ", "));
