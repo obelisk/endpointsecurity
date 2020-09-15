@@ -42,12 +42,14 @@ use {
     es_respond_result_t_ES_RESPOND_RESULT_ERR_EVENT_TYPE as ES_RESPONSE_RESULT_ERROR_EVENT_TYPE,
 };
 
+#[derive(Debug)]
 pub struct EsFile {
     pub path: String,
     pub path_truncated: bool,
 //    pub stat: stat,
 }
 
+#[derive(Debug)]
 pub struct EsProcess {
     //pub audit_token: rust_audit_token,
     pub ppid: u32,
@@ -65,24 +67,28 @@ pub struct EsProcess {
     //pub start_time: timeval,
 }
 
+#[derive(Debug)]
 pub struct EsEventExec {
     pub target: EsProcess,
     pub args: String,
     // __bindgen_anon_1: es_event_exec_t__bindgen_ty_1,
 }
 
+#[derive(Debug)]
 pub struct EsEventOpen {
     pub fflag: u32,
     pub file: EsFile,
     // reserved: [u8; 64usize],
 }
 
+#[derive(Debug)]
 pub struct EsEventSignal {
     pub signal: i32,
     pub target: EsProcess,
     //pub reserved: [u8; 64usize],
 }
 
+#[derive(Debug)]
 pub struct EsEventLink {
     pub source: EsFile,
     pub target_dir: EsFile,
@@ -90,28 +96,33 @@ pub struct EsEventLink {
     //pub reserved: [u8; 64usize],
 }
 
+#[derive(Debug)]
 pub struct EsEventUnlink {
     pub target: EsFile,
     pub parent_dir: EsFile,
     //pub reserved: [u8; 64usize],
 }
 
+#[derive(Debug)]
 pub enum EsDestinationType {
     ExistingFile = 0,
     NewPath = 1,
     Unknown = 2,
 }
 
+#[derive(Debug)]
 pub struct EsRenameDestinationNewPath {
     pub dir: EsFile,
     pub filename: String,
 }
 
+#[derive(Debug)]
 pub struct EsRenameDestination {
     pub existing_file: EsFile,
     pub new_path: EsRenameDestinationNewPath,
 }
 
+#[derive(Debug)]
 pub struct EsEventRename {
     pub source: EsFile,
     pub destination_type: EsDestinationType,
@@ -119,6 +130,7 @@ pub struct EsEventRename {
     //pub reserved: [u8; 64usize],
 }
 
+#[derive(Debug)]
 pub struct EsEventReadDir {
     pub target: EsFile,
 }
@@ -169,6 +181,7 @@ impl fmt::Display for SupportedEsEvent {
     }
 }
 
+#[derive(Debug)]
 pub enum EsEvent {
     AuthExec(EsEventExec),
     AuthOpen(EsEventOpen),
@@ -273,21 +286,25 @@ pub enum EsEvent {
     Last,*/
 }
 
+#[derive(Debug)]
 pub enum EsCacheResult {
     Yes,
     No,
 }
 
+#[derive(Debug)]
 pub enum EsActionType {
     Auth,
     Notify,
 }
 
+#[derive(Debug)]
 pub enum EsAuthResult {
     Allow,
     Deny,
 }
 
+#[derive(Debug)]
 pub enum EsResultType {
     Auth,
     Flags,
@@ -299,15 +316,18 @@ pub struct EsEventId {
     pub reserved: [u8; 32usize],
 }
 
+#[derive(Debug)]
 pub struct EsResultNotifyResult {
     pub flags: u32,
 }
 
+#[derive(Debug)]
 pub struct EsResult {
     pub result_type: EsResultType,
     pub result: EsResultNotifyResult,
 }
 
+#[derive(Debug)]
 pub enum EsAction {
     Auth(EsEventId),
     Notify(EsResult),
@@ -317,6 +337,7 @@ pub enum EsAction {
 // to the es_message
 unsafe impl Send for EsMessage {}
 unsafe impl Sync for EsMessage {}
+#[derive(Debug)]
 pub struct EsMessage {
     pub version: u32,
     pub time: u64,
