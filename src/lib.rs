@@ -13,6 +13,7 @@ use std::fmt;
 use std::ffi::CStr;
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
+use std::str;
 
 use block::*;
 
@@ -70,7 +71,7 @@ pub struct EsProcess {
 #[derive(Debug)]
 pub struct EsEventExec {
     pub target: EsProcess,
-    pub args: String,
+    pub args: Vec<String>,
     // __bindgen_anon_1: es_event_exec_t__bindgen_ty_1,
 }
 
@@ -425,10 +426,30 @@ fn parse_c_string(string_token: es_string_token_t) -> String {
     }
 }
 
+fn parse_es_token(token: es_token_t) -> String {
+    let mut data: Vec<u8> = vec![];
+    //println!("Token Length: {} Is Data pointer null: {}", token.size, token.data.is_null());
+    data.reserve(token.size as usize);
+    unsafe {
+        let mut x = 0;
+        while x < token.size as usize {
+            data[x] = *(token.data.add(x));
+            x += 1;
+        }
+    }
+
+    match str::from_utf8(&data) {
+        Ok(v) => v.to_owned(),
+        Err(e) => {
+            warn!(target: "endpointsecurity-rs", "Parse failed: {}", e);
+            String::from("")
+        },
+    }
+}
+
 fn parse_es_file_ptr(file: *mut es_file_t) -> EsFile {
     unsafe {
         let file = *file;
-
         EsFile {
             path: CStr::from_ptr(file.path.data).to_str().unwrap().to_owned(),
             path_truncated: { file.path_truncated },
@@ -464,9 +485,18 @@ fn parse_es_event(event_type: SupportedEsEvent, event: es_events_t, action_type:
         match event_type {
             SupportedEsEvent::AuthExec | SupportedEsEvent::NotifyExec => {
                 let target = event.exec.target;
+                let argc = es_exec_arg_count(&event.exec as *const _);
+                let mut argv = vec![];
+                argv.reserve(argc as usize);
+                let mut x = 0;
+                while x < argc {
+                    argv.push(parse_c_string(es_exec_arg(&event.exec as *const _, x as u32)));
+                    x += 1;
+                }
+
                 let event = EsEventExec {
                     target: parse_es_process(&*target),
-                    args: String::new(),
+                    args: argv,
                 };
 
                 match action_type {
