@@ -47,6 +47,15 @@ extern "C" {
     pub fn audit_token_to_pid(audit_token: audit_token_t) -> pid_t;
 }
 
+#[repr(C)]
+#[derive(Debug, PartialEq)]
+pub enum FileModes {
+    Read = 0x00000001,
+    Write = 0x00000002,
+    NonBlock = 0x00000004,
+    Append = 0x00000008,
+}
+
 #[derive(Debug)]
 pub struct EsFile {
     pub path: String,
@@ -65,7 +74,7 @@ pub struct EsProcess {
     pub codesigning_flags: u32,
     pub is_platform_binary: bool,
     pub is_es_client: bool,
-    pub cdhash: [u8; 20usize],
+    pub cdhash: String,
     pub signing_id: String,
     pub team_id: String,
     pub executable: EsFile,
@@ -452,7 +461,14 @@ fn parse_es_process(process: &es_process_t) -> EsProcess {
         codesigning_flags: process.codesigning_flags as u32,
         is_platform_binary: process.is_platform_binary,
         is_es_client: process.is_es_client,
-        cdhash: process.cdhash,
+        cdhash: {
+            let mut x = String::new();
+            x.reserve(40);
+            for byte in &process.cdhash {
+                x.push_str(format!("{:X}", byte).as_str());
+            }
+            x
+        },
         signing_id: parse_c_string(process.signing_id),
         team_id: parse_c_string(process.team_id),
         executable: parse_es_file(process.executable),
