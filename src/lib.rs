@@ -43,6 +43,10 @@ use {
     es_respond_result_t_ES_RESPOND_RESULT_ERR_EVENT_TYPE as ES_RESPONSE_RESULT_ERROR_EVENT_TYPE,
 };
 
+extern "C" {
+    pub fn audit_token_to_pid(audit_token: audit_token_t) -> pid_t;
+}
+
 #[derive(Debug)]
 pub struct EsFile {
     pub path: String,
@@ -55,6 +59,7 @@ pub struct EsProcess {
     //pub audit_token: rust_audit_token,
     pub ppid: u32,
     pub original_ppid: u32,
+    pub pid: u32,
     pub group_id: u32,
     pub session_id: u32,
     pub codesigning_flags: u32,
@@ -426,27 +431,6 @@ fn parse_c_string(string_token: es_string_token_t) -> String {
     }
 }
 
-fn parse_es_token(token: es_token_t) -> String {
-    let mut data: Vec<u8> = vec![];
-    //println!("Token Length: {} Is Data pointer null: {}", token.size, token.data.is_null());
-    data.reserve(token.size as usize);
-    unsafe {
-        let mut x = 0;
-        while x < token.size as usize {
-            data[x] = *(token.data.add(x));
-            x += 1;
-        }
-    }
-
-    match str::from_utf8(&data) {
-        Ok(v) => v.to_owned(),
-        Err(e) => {
-            warn!(target: "endpointsecurity-rs", "Parse failed: {}", e);
-            String::from("")
-        },
-    }
-}
-
 fn parse_es_file_ptr(file: *mut es_file_t) -> EsFile {
     unsafe {
         let file = *file;
@@ -468,6 +452,7 @@ fn parse_es_process(process: &es_process_t) -> EsProcess {
     EsProcess {
         ppid: process.ppid as u32,
         original_ppid: process.original_ppid as u32,
+        pid: unsafe { audit_token_to_pid(process.audit_token) as u32 },
         group_id: process.group_id as u32,
         session_id: process.session_id as u32,
         codesigning_flags: process.codesigning_flags as u32,
