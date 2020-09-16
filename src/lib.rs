@@ -431,20 +431,14 @@ fn parse_c_string(string_token: es_string_token_t) -> String {
     }
 }
 
-fn parse_es_file_ptr(file: *mut es_file_t) -> EsFile {
+fn parse_es_file(file: *mut es_file_t) -> EsFile {
+    let f;
     unsafe {
-        let file = *file;
-        EsFile {
-            path: CStr::from_ptr(file.path.data).to_str().unwrap().to_owned(),
-            path_truncated: { file.path_truncated },
-        }
+        f = *file;
     }
-}
-
-fn parse_es_file(file: &es_file_t) -> EsFile {
     EsFile {
-        path: unsafe { CStr::from_ptr(file.path.data).to_str().unwrap().to_owned() },
-        path_truncated: { file.path_truncated },
+        path: unsafe { CStr::from_ptr(f.path.data).to_str().unwrap().to_owned() },
+        path_truncated: { f.path_truncated },
     }
 }
 
@@ -461,7 +455,7 @@ fn parse_es_process(process: &es_process_t) -> EsProcess {
         cdhash: process.cdhash,
         signing_id: parse_c_string(process.signing_id),
         team_id: parse_c_string(process.team_id),
-        executable: parse_es_file_ptr(process.executable),
+        executable: parse_es_file(process.executable),
     }
 }
 
@@ -493,7 +487,7 @@ fn parse_es_event(event_type: SupportedEsEvent, event: es_events_t, action_type:
                 let file = event.open;
                 let event = EsEventOpen {
                     fflag: file.fflag as u32,
-                    file: parse_es_file_ptr(file.file),
+                    file: parse_es_file(file.file),
                 };
                 match action_type {
                     EsActionType::Notify => EsEvent::NotifyOpen(event),
@@ -515,8 +509,8 @@ fn parse_es_event(event_type: SupportedEsEvent, event: es_events_t, action_type:
                 let target = event.unlink.target;
                 let parent_dir = event.unlink.target;
                 let event = EsEventUnlink {
-                    target: parse_es_file(&*target),
-                    parent_dir: parse_es_file(&*parent_dir),
+                    target: parse_es_file(target),
+                    parent_dir: parse_es_file(parent_dir),
                 };
             match action_type {
                     EsActionType::Notify => EsEvent::NotifyUnlink(event),
@@ -525,8 +519,8 @@ fn parse_es_event(event_type: SupportedEsEvent, event: es_events_t, action_type:
             },
             SupportedEsEvent::AuthLink | SupportedEsEvent::NotifyLink => {
                 let event = EsEventLink {
-                    source: parse_es_file_ptr(event.link.source),
-                    target_dir: parse_es_file_ptr(event.link.target_dir),
+                    source: parse_es_file(event.link.source),
+                    target_dir: parse_es_file(event.link.target_dir),
                     target_filename: parse_c_string(event.link.target_filename),
                 };
                 match action_type {
@@ -536,16 +530,16 @@ fn parse_es_event(event_type: SupportedEsEvent, event: es_events_t, action_type:
             },
             SupportedEsEvent::AuthRename | SupportedEsEvent::NotifyRename => {
                 let event = EsEventRename {
-                    source: parse_es_file_ptr(event.rename.source),
+                    source: parse_es_file(event.rename.source),
                     destination_type: match event.rename.destination_type {
                         0 => EsDestinationType::ExistingFile,
                         1 => EsDestinationType::NewPath,
                         _ => EsDestinationType::Unknown,
                     },
                     destination: EsRenameDestination {
-                        existing_file: parse_es_file_ptr(event.rename.destination.existing_file),
+                        existing_file: parse_es_file(event.rename.destination.existing_file),
                         new_path: EsRenameDestinationNewPath {
-                            dir: parse_es_file_ptr(event.rename.destination.new_path.dir),
+                            dir: parse_es_file(event.rename.destination.new_path.dir),
                             filename: parse_c_string(event.rename.destination.new_path.filename),
                         },
                     }
@@ -557,7 +551,7 @@ fn parse_es_event(event_type: SupportedEsEvent, event: es_events_t, action_type:
             },
             SupportedEsEvent::AuthReadDir | SupportedEsEvent::NotifyReadDir => {
                 let event = EsEventReadDir {
-                    target: parse_es_file_ptr(event.readdir.target),
+                    target: parse_es_file(event.readdir.target),
                 };
                 match action_type {
                     EsActionType::Notify => EsEvent::NotifyReadDir(event),
