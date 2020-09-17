@@ -3,6 +3,12 @@ name = "endpointsecurity"
 version = "0.1.0"
 authors = ["Mitchell Grenier <mitchell@confurious.io>"]
 edition = "2018"
+description = "Nice (ish) bindings for the EndpointSecurity framework on macOS"
+license = "MIT"
+license-file = "LICENSE"
+keywords = ["security", "macos", "endpoint"]
+readme = "README.md"
+homepage = "https://github.com/obelisk/endpointsecurity"
 
 [dependencies]
 block = "0.1.6"
