@@ -465,7 +465,7 @@ fn parse_es_process(process: &es_process_t) -> EsProcess {
             let mut x = String::new();
             x.reserve(40);
             for byte in &process.cdhash {
-                x.push_str(format!("{:X}", byte).as_str());
+                x.push_str(format!("{:02X}", byte).as_str());
             }
             x
         },
