@@ -5,7 +5,7 @@ use std::sync::mpsc::channel;
 
 fn main() {
     env_logger::init();
-    info!("Starting example process monitor");
+    info!("Starting example signal intercept handler");
 
     let (es_message_tx, es_message_rx) = channel();
 
@@ -41,8 +41,8 @@ fn main() {
         },
     };
 
-    if !client.set_subscriptions_to(&vec![SupportedEsEvent::NotifyExec]) {
-        error!("Could not subscribe to NotifyExec event (not sure why)");
+    if !client.set_subscriptions_to(&vec![SupportedEsEvent::AuthSignal]) {
+        error!("Could not subscribe to AuthSignal event (not sure why)");
         return;
     }
 
@@ -55,9 +55,26 @@ fn main() {
             }
         };
 
+        // We don't cache the result here for demonstation purposes. In practice you should
+        // cache whenever possible but here we don't so you can see every denial instead of
+        // just the first one
         match &message.event {
-            EsEvent::NotifyExec(event) => {
-                println!("PID: {}, Path: {}, CDHash: {}, Args: {}", event.target.pid, event.target.executable.path, event.target.cdhash, event.args.join(" "));
+            EsEvent::AuthSignal(event) => {
+                // Backout of all signals that don't affect EsClients as quickly as possible
+                // to reduce impact to system responsiveness
+                if !event.target.is_es_client {
+                    client.respond_to_auth_event(&message, &EsAuthResult::Allow, &EsCacheResult::No);
+                    continue;
+                }
+
+                // My signing ID, don't let signals reach my EsClients
+                if event.target.team_id == "5QYJ6C8ZNT" {
+                    println!("Received a signal to my EsClient, disallowing that!");
+                    client.respond_to_auth_event(&message, &EsAuthResult::Deny, &EsCacheResult::No);
+                }
+                
+                // This is a signal to someone else's EsClient. Don't touch it
+                client.respond_to_auth_event(&message, &EsAuthResult::Allow, &EsCacheResult::No);
             },
             _ => {
                 continue;
