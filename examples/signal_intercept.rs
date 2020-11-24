@@ -10,35 +10,11 @@ fn main() {
     let (es_message_tx, es_message_rx) = channel();
 
     let client = match create_es_client(es_message_tx.clone()) {
-        EsNewClientResult::Success(v) => v,
-        EsNewClientResult::ErrorInvalidArgument(e) => {
-            error!("{}", e);
+        Ok(client) => client,
+        Err(e) => {
+            error!("{:?}: {}", e.error_type, e.details);
             return;
-        },
-        EsNewClientResult::ErrorInternal(e) => {
-            error!("{}", e);
-            return;
-        },
-        EsNewClientResult::ErrorNotEntitled(e) => {
-            error!("{}", e);
-            return;
-        },
-        EsNewClientResult::ErrorNotPermitted(e) => {
-            error!("{}", e);
-            return;
-        },
-        EsNewClientResult::ErrorNotPrivileged(e) => {
-            error!("{}", e);
-            return;
-        },
-        EsNewClientResult::ErrorTooManyClients(e) => {
-            error!("{}", e);
-            return;
-        },
-        EsNewClientResult::Unknown(e) => {
-            println!("{}", e);
-            return;
-        },
+        }
     };
 
     if !client.set_subscriptions_to(&vec![SupportedEsEvent::AuthSignal]) {

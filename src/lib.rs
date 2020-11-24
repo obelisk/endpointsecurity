@@ -150,6 +150,7 @@ pub struct EsEventReadDir {
     pub target: EsFile,
 }
 
+#[derive(Debug)]
 pub enum EsRespondResult {
     Sucess,
     ErrorInvalidArgument,
@@ -160,15 +161,28 @@ pub enum EsRespondResult {
     UnknownResponse,
 }
 
+#[derive(Debug)]
 pub enum EsNewClientResult {
-    Success(EsClient),
-    ErrorInvalidArgument(String),
-    ErrorInternal(String),
-    ErrorNotEntitled(String),
-    ErrorNotPermitted(String),
-    ErrorNotPrivileged(String),
-    ErrorTooManyClients(String),
-    Unknown(String),
+    Success,
+    ErrorInvalidArgument,
+    ErrorInternal,
+    ErrorNotEntitled,
+    ErrorNotPermitted,
+    ErrorNotPrivileged,
+    ErrorTooManyClients,
+    Unknown,
+}
+
+#[derive(Debug)]
+pub struct EsClientError {
+    pub details: String,
+    pub error_type: EsNewClientResult,
+}
+
+impl fmt::Display for EsClientError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f,"{}", self.details)
+    }
 }
 
 #[repr(C)]
@@ -590,7 +604,7 @@ fn parse_es_action(action: es_message_t__bindgen_ty_1, action_type: &EsActionTyp
                         0 => EsResultType::Auth,
                         1 => EsResultType::Flags,
                         _ => {
-                            println!("Result Type is broken");
+                            error!("Result Type is broken");
                             return None;   // At time of writing these are the only types
                         }
                     }
@@ -650,7 +664,7 @@ fn es_notify_callback(_client: *mut es_client_t, message: *mut es_message_t, tx:
     }
 }
 
-pub fn create_es_client(tx: Sender<EsMessage>) -> EsNewClientResult {
+pub fn create_es_client(tx: Sender<EsMessage>) -> Result<EsClient, EsClientError> {
     let mut client: *mut es_client_t = std::ptr::null_mut();
     let client_ptr: *mut *mut es_client_t = &mut client;
 
@@ -664,17 +678,38 @@ pub fn create_es_client(tx: Sender<EsMessage>) -> EsNewClientResult {
                 client: client,
                 active_subscriptions: HashSet::new(),
             };
-            EsNewClientResult::Success(EsClient {
+            Ok(EsClient {
                 client: Arc::new(Mutex::new(hidden)),
             }
         )},
-        ES_NEW_CLIENT_ERROR_INVALID_ARGUMENT => EsNewClientResult::ErrorInvalidArgument(String::from("Something incorrect was passed to es_new_client")),
-        ES_NEW_CLIENT_ERROR_INTERNAL => EsNewClientResult::ErrorInternal(String::from("es_new_client experienced an internal error")),
-        ES_NEW_CLIENT_ERROR_NOT_ENTITLED => EsNewClientResult::ErrorNotEntitled(String::from("This process doesn't have the EndpointSecurity entitlement")),
-        ES_NEW_CLIENT_ERROR_NOT_PERMITTED => EsNewClientResult::ErrorNotPermitted(String::from("This process is not permitted to use the EndpointSecurity Framework")),
-        ES_NEW_CLIENT_ERROR_NOT_PRIVILEGED => EsNewClientResult::ErrorNotPrivileged(String::from("The process must be running as root to access the EndpointSecurity Framework")),
-        ES_NEW_CLIENT_ERROR_TOO_MANY_CLIENTS => EsNewClientResult::ErrorTooManyClients(String::from("There are too many clients connected to EndpointSecurity")),
-        _ => EsNewClientResult::Unknown(String::from("es_new_client returned an unknown error")),
+        ES_NEW_CLIENT_ERROR_INVALID_ARGUMENT => Err(EsClientError{
+            details: String::from("Something incorrect was passed to es_new_client"),
+            error_type: EsNewClientResult::ErrorInvalidArgument,
+        }),
+        ES_NEW_CLIENT_ERROR_INTERNAL => Err(EsClientError{
+            details: String::from("es_new_client experienced an internal error"),
+            error_type: EsNewClientResult::ErrorInternal,
+        }),
+        ES_NEW_CLIENT_ERROR_NOT_ENTITLED => Err(EsClientError{
+            details: String::from("This process doesn't have the EndpointSecurity entitlement. (Is the binary signed correctly, is there a provisioning profile installed to allow your program to access EPS?)"),
+            error_type: EsNewClientResult::ErrorNotEntitled,
+        }),
+        ES_NEW_CLIENT_ERROR_NOT_PERMITTED => Err(EsClientError{
+            details: String::from("This process is not permitted to use the EndpointSecurity Framework. (Do you have Full Disk Access for your process?)"),
+            error_type: EsNewClientResult::ErrorNotPermitted,
+        }),
+        ES_NEW_CLIENT_ERROR_NOT_PRIVILEGED => Err(EsClientError{
+            details: String::from("The process must be running as root to access the EndpointSecurity Framework"),
+            error_type: EsNewClientResult::ErrorNotPrivileged,
+        }),
+        ES_NEW_CLIENT_ERROR_TOO_MANY_CLIENTS => Err(EsClientError{
+            details: String::from("There are too many clients connected to EndpointSecurit"),
+            error_type: EsNewClientResult::ErrorTooManyClients,
+        }),
+        _ => Err(EsClientError{
+            details: String::from("es_new_client returned an unknown error"),
+            error_type: EsNewClientResult::Unknown,
+        }),
     }
 }
 
