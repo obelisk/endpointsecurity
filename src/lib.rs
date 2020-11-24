@@ -678,8 +678,12 @@ pub fn create_es_client(tx: Sender<EsMessage>) -> EsNewClientResult {
     }
 }
 
+// This might not be true. I'm talking with Apple to figure it out but nothing
+// seems to have broken with it yet.
+// @obelisk Investigate more
 unsafe impl Send for EsClient {}
 unsafe impl Sync for EsClient {}
+
 impl EsClient {
     // Start receiving callbacks for specified events
     pub fn subscribe_to_events(&self, events: &Vec<SupportedEsEvent>) -> bool {
