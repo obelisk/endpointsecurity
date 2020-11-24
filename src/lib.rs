@@ -455,10 +455,7 @@ fn parse_c_string(string_token: es_string_token_t) -> String {
 }
 
 fn parse_es_file(file: *mut es_file_t) -> EsFile {
-    let f;
-    unsafe {
-        f = *file;
-    }
+    let f = unsafe {*file};
     EsFile {
         path: unsafe { CStr::from_ptr(f.path.data).to_str().unwrap().to_owned() },
         path_truncated: { f.path_truncated },
@@ -593,63 +590,59 @@ fn parse_es_event(event_type: SupportedEsEvent, event: es_events_t, action_type:
 }
 
 fn parse_es_action(action: es_message_t__bindgen_ty_1, action_type: &EsActionType) -> Option<EsAction> {
-    unsafe {
-        Some(match action_type {
-            EsActionType::Auth => EsAction::Auth(EsEventId{
-                reserved: action.auth.reserved,
-            }),
-            EsActionType::Notify => EsAction::Notify(EsResult {
-                result_type: {
-                    match action.notify.result_type {
-                        0 => EsResultType::Auth,
-                        1 => EsResultType::Flags,
-                        _ => {
-                            error!("Result Type is broken");
-                            return None;   // At time of writing these are the only types
-                        }
+    Some(match action_type {
+        EsActionType::Auth => EsAction::Auth(EsEventId{
+            reserved: unsafe {action.auth.reserved},
+        }),
+        EsActionType::Notify => EsAction::Notify(EsResult {
+            result_type: {
+                match unsafe {action.notify.result_type} {
+                    0 => EsResultType::Auth,
+                    1 => EsResultType::Flags,
+                    _ => {
+                        error!("Result Type is broken");
+                        return None;   // At time of writing these are the only types
                     }
-                },
-                result: EsResultNotifyResult {
-                    flags: action.notify.result.flags,
                 }
-            })
+            },
+            result: EsResultNotifyResult {
+                flags: unsafe { action.notify.result.flags },
+            }
         })
-    }
+    })
 }
 
 fn parse_es_message(message: *mut es_message_t) -> Result<EsMessage, &'static str> {
-    unsafe {
-        let message = &*message;
-        let process = &*(message.process);
-        let action_type = match message.action_type {
-            ES_ACTION_TYPE_AUTH => EsActionType::Auth,
-            ES_ACTION_TYPE_NOTIFY => EsActionType::Notify,
-            _ => return Err("Couldn't parse action_type"), // At time of writing these are the only two ways
-        };
+    let message = unsafe {&*message};
+    let process = unsafe {&*(message.process)};
+    let action_type = match message.action_type {
+        ES_ACTION_TYPE_AUTH => EsActionType::Auth,
+        ES_ACTION_TYPE_NOTIFY => EsActionType::Notify,
+        _ => return Err("Couldn't parse action_type"), // At time of writing these are the only two ways
+    };
 
-        let event = if let Some(event) = raw_event_to_supportedesevent(message.event_type as u64) {
-            parse_es_event(event, message.event, &action_type)
-        } else {
-            println!("Error in this event type: {}", message.event_type as u64);
-            return Err("Could not parse this event type");
-        };
+    let event = if let Some(event) = raw_event_to_supportedesevent(message.event_type as u64) {
+        parse_es_event(event, message.event, &action_type)
+    } else {
+        println!("Error in this event type: {}", message.event_type as u64);
+        return Err("Could not parse this event type");
+    };
 
-        Ok(EsMessage {
-            version: message.version,
-            time: message.time.tv_sec as u64,
-            mach_time: message.mach_time,
-            deadline: message.deadline,
-            process: parse_es_process(process),
-            seq_num: message.seq_num,
-            action: match parse_es_action(message.action, &action_type) {
-                Some(x) => x,
-                None => return Err("Couldn't parse the action field"),
-            },
-            action_type: action_type,
-            event: event,
-            raw_message: message,
-        })
-    }
+    Ok(EsMessage {
+        version: message.version,
+        time: message.time.tv_sec as u64,
+        mach_time: message.mach_time,
+        deadline: message.deadline,
+        process: parse_es_process(process),
+        seq_num: message.seq_num,
+        action: match parse_es_action(message.action, &action_type) {
+            Some(x) => x,
+            None => return Err("Couldn't parse the action field"),
+        },
+        action_type: action_type,
+        event: event,
+        raw_message: message,
+    })
 }
 
 fn es_notify_callback(_client: *mut es_client_t, message: *mut es_message_t, tx: Sender<EsMessage>) {
