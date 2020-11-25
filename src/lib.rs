@@ -102,6 +102,18 @@ pub struct EsEventOpen {
 }
 
 #[derive(Debug)]
+pub struct EsEventKextload {
+    pub identifier: String,
+    // reserved: [u8; 64usize],
+}
+
+#[derive(Debug)]
+pub struct EsEventKextunload {
+    pub identifier: String,
+    // reserved: [u8; 64usize],
+}
+
+#[derive(Debug)]
 pub struct EsEventSignal {
     pub signal: i32,
     pub target: EsProcess,
@@ -195,12 +207,15 @@ impl fmt::Display for EsClientError {
 pub enum SupportedEsEvent {
     AuthExec = 0,
     AuthOpen = 1,
+    AuthKextload = 2,
     AuthRename = 6,
     AuthSignal = 7,
     AuthUnlink = 8,
     NotifyExec = 9,
     NotifyOpen = 10,
     NotifyFork = 11,
+    NotifyKextload = 17,
+    NotifyKextunload = 18,
     NotifyLink = 19,
     NotifyRename = 25,
     NotifySignal = 31,
@@ -220,8 +235,8 @@ impl fmt::Display for SupportedEsEvent {
 pub enum EsEvent {
     AuthExec(EsEventExec),
     AuthOpen(EsEventOpen),
-    /*AuthKextload,
-    AuthMmap,
+    AuthKextload(EsEventKextload),
+    /*AuthMmap,
     AuthMprotect,
     AuthMount,*/
     AuthRename(EsEventRename),
@@ -234,9 +249,9 @@ pub enum EsEvent {
     NotifyCreate,
     NotifyExchangedata,
     NotifyExit,
-    NotifyGetTask,
-    NotifyKextload,
-    NotifyKextunload,*/
+    NotifyGetTask,*/
+    NotifyKextload(EsEventKextload),
+    NotifyKextunload(EsEventKextunload),
     NotifyLink(EsEventLink),
     /*NotifyMmap,
     NotifyMprotect,
@@ -407,12 +422,15 @@ pub fn raw_event_to_supportedesevent(event_type: u64) -> Option<SupportedEsEvent
     Some(match event_type {
         0 => SupportedEsEvent::AuthExec,
         1 => SupportedEsEvent::AuthOpen,
+        2 => SupportedEsEvent::AuthKextload,
         6 => SupportedEsEvent::AuthRename,
         7 => SupportedEsEvent::AuthSignal,
         8 => SupportedEsEvent::AuthUnlink,
         9 => SupportedEsEvent::NotifyExec,
         10 => SupportedEsEvent::NotifyOpen,
         11 => SupportedEsEvent::NotifyFork,
+        17 => SupportedEsEvent::NotifyKextload,
+        18 => SupportedEsEvent::NotifyKextunload,
         19 => SupportedEsEvent::NotifyLink,
         25 => SupportedEsEvent::NotifyRename,
         31 => SupportedEsEvent::NotifySignal,
@@ -429,12 +447,15 @@ pub fn supportedesevent_to_raw_event(event_type: &SupportedEsEvent) -> u32 {
     match event_type {
         SupportedEsEvent::AuthExec => 0,
         SupportedEsEvent::AuthOpen => 1,
+        SupportedEsEvent::AuthKextload => 2,
         SupportedEsEvent::AuthRename => 6,
         SupportedEsEvent::AuthSignal => 7,
         SupportedEsEvent::AuthUnlink => 8,
         SupportedEsEvent::NotifyExec => 9,
         SupportedEsEvent::NotifyOpen => 10,
         SupportedEsEvent::NotifyFork => 11,
+        SupportedEsEvent::NotifyKextload => 17,
+        SupportedEsEvent::NotifyKextunload => 18,
         SupportedEsEvent::NotifyLink => 19,
         SupportedEsEvent::NotifyRename => 25,
         SupportedEsEvent::NotifySignal => 31,
@@ -445,7 +466,7 @@ pub fn supportedesevent_to_raw_event(event_type: &SupportedEsEvent) -> u32 {
     }
 }
 
-fn parse_c_string(string_token: es_string_token_t) -> String {
+fn parse_es_string_token(string_token: es_string_token_t) -> String {
     match string_token.length {
         x if x <= 0 => {
             String::new()
@@ -488,8 +509,8 @@ fn parse_es_process(process: &es_process_t) -> EsProcess {
             }
             x
         },
-        signing_id: parse_c_string(process.signing_id),
-        team_id: parse_c_string(process.team_id),
+        signing_id: parse_es_string_token(process.signing_id),
+        team_id: parse_es_string_token(process.team_id),
         executable: parse_es_file(process.executable),
     }
 }
@@ -504,7 +525,7 @@ fn parse_es_event(event_type: SupportedEsEvent, event: es_events_t, action_type:
                 argv.reserve(argc as usize);
                 let mut x = 0;
                 while x < argc {
-                    argv.push(parse_c_string(es_exec_arg(&event.exec as *const _, x as u32)));
+                    argv.push(parse_es_string_token(es_exec_arg(&event.exec as *const _, x as u32)));
                     x += 1;
                 }
 
@@ -527,6 +548,16 @@ fn parse_es_event(event_type: SupportedEsEvent, event: es_events_t, action_type:
                 match action_type {
                     EsActionType::Notify => EsEvent::NotifyOpen(event),
                     EsActionType::Auth => EsEvent::AuthOpen(event),
+                }
+            },
+            SupportedEsEvent::AuthKextload | SupportedEsEvent::NotifyKextload => {
+                let load = event.kextload;
+                let event = EsEventKextload {
+                    identifier: parse_es_string_token(load.identifier),
+                };
+                match action_type {
+                    EsActionType::Notify => EsEvent::NotifyKextload(event),
+                    EsActionType::Auth => EsEvent::AuthKextload(event),
                 }
             },
             SupportedEsEvent::AuthSignal | SupportedEsEvent::NotifySignal => {
@@ -556,7 +587,7 @@ fn parse_es_event(event_type: SupportedEsEvent, event: es_events_t, action_type:
                 let event = EsEventLink {
                     source: parse_es_file(event.link.source),
                     target_dir: parse_es_file(event.link.target_dir),
-                    target_filename: parse_c_string(event.link.target_filename),
+                    target_filename: parse_es_string_token(event.link.target_filename),
                 };
                 match action_type {
                     EsActionType::Notify => EsEvent::NotifyLink(event),
@@ -575,7 +606,7 @@ fn parse_es_event(event_type: SupportedEsEvent, event: es_events_t, action_type:
                         existing_file: parse_es_file(event.rename.destination.existing_file),
                         new_path: EsRenameDestinationNewPath {
                             dir: parse_es_file(event.rename.destination.new_path.dir),
-                            filename: parse_c_string(event.rename.destination.new_path.filename),
+                            filename: parse_es_string_token(event.rename.destination.new_path.filename),
                         },
                     }
                 };
@@ -596,6 +627,11 @@ fn parse_es_event(event_type: SupportedEsEvent, event: es_events_t, action_type:
             SupportedEsEvent::NotifyFork => {
                 EsEvent::NotifyFork(EsEventFork {
                     child: parse_es_process(&*event.fork.child),
+                })
+            },
+            SupportedEsEvent::NotifyKextunload => {
+                EsEvent::NotifyKextunload(EsEventKextunload {
+                    identifier: parse_es_string_token(event.kextunload.identifier),
                 })
             },
         }
