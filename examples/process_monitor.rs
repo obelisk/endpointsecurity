@@ -6,7 +6,6 @@ use std::sync::mpsc::channel;
 fn main() {
     env_logger::init();
     info!("Starting example process monitor");
-
     let (es_message_tx, es_message_rx) = channel();
 
     let client = match create_es_client(es_message_tx.clone()) {
@@ -17,7 +16,7 @@ fn main() {
         }
     };
 
-    if !client.set_subscriptions_to(&vec![SupportedEsEvent::NotifyExec]) {
+    if !client.set_subscriptions_to(&vec![SupportedEsEvent::NotifyExec, SupportedEsEvent::NotifyFork]) {
         error!("Could not subscribe to NotifyExec event (not sure why)");
         return;
     }
@@ -33,7 +32,10 @@ fn main() {
 
         match &message.event {
             EsEvent::NotifyExec(event) => {
-                println!("PID: {}, Path: {}, CDHash: {}, Args: {}", event.target.pid, event.target.executable.path, event.target.cdhash, event.args.join(" "));
+                println!("Type: Exec, PID: {}, Path: {}, CDHash: {}, Args: {}", event.target.pid, event.target.executable.path, event.target.cdhash, event.args.join(" "));
+            },
+            EsEvent::NotifyFork(event) => {
+                println!("Type: Fork, PID: {}, Path: {}, CDHash: {}", event.child.pid, event.child.executable.path, event.child.cdhash);
             },
             _ => {
                 continue;
