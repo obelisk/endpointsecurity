@@ -95,6 +95,12 @@ pub struct EsEventFork {
 }
 
 #[derive(Debug)]
+pub struct EsEventClose {
+    pub modified: bool,
+    pub target: EsFile,
+}
+
+#[derive(Debug)]
 pub struct EsEventOpen {
     pub fflag: u32,
     pub file: EsFile,
@@ -214,6 +220,7 @@ pub enum SupportedEsEvent {
     NotifyExec = 9,
     NotifyOpen = 10,
     NotifyFork = 11,
+    NotifyClose = 12,
     NotifyKextload = 17,
     NotifyKextunload = 18,
     NotifyLink = 19,
@@ -245,8 +252,8 @@ pub enum EsEvent {
     NotifyExec(EsEventExec),
     NotifyOpen(EsEventOpen),
     NotifyFork(EsEventFork),
-    /*NotifyClose,
-    NotifyCreate,
+    NotifyClose(EsEventClose),
+    /*NotifyCreate,
     NotifyExchangedata,
     NotifyExit,
     NotifyGetTask,*/
@@ -429,6 +436,7 @@ pub fn raw_event_to_supportedesevent(event_type: u64) -> Option<SupportedEsEvent
         9 => SupportedEsEvent::NotifyExec,
         10 => SupportedEsEvent::NotifyOpen,
         11 => SupportedEsEvent::NotifyFork,
+        12 => SupportedEsEvent::NotifyClose,
         17 => SupportedEsEvent::NotifyKextload,
         18 => SupportedEsEvent::NotifyKextunload,
         19 => SupportedEsEvent::NotifyLink,
@@ -454,6 +462,7 @@ pub fn supportedesevent_to_raw_event(event_type: &SupportedEsEvent) -> u32 {
         SupportedEsEvent::NotifyExec => 9,
         SupportedEsEvent::NotifyOpen => 10,
         SupportedEsEvent::NotifyFork => 11,
+        SupportedEsEvent::NotifyClose => 12,
         SupportedEsEvent::NotifyKextload => 17,
         SupportedEsEvent::NotifyKextunload => 18,
         SupportedEsEvent::NotifyLink => 19,
@@ -632,6 +641,12 @@ fn parse_es_event(event_type: SupportedEsEvent, event: es_events_t, action_type:
             SupportedEsEvent::NotifyKextunload => {
                 EsEvent::NotifyKextunload(EsEventKextunload {
                     identifier: parse_es_string_token(event.kextunload.identifier),
+                })
+            },
+            SupportedEsEvent::NotifyClose => {
+                EsEvent::NotifyClose(EsEventClose {
+                    modified: event.close.modified,
+                    target: parse_es_file(event.close.target),
                 })
             },
         }
