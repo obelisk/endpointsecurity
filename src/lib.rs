@@ -90,6 +90,11 @@ pub struct EsEventExec {
 }
 
 #[derive(Debug)]
+pub struct EsEventFork {
+    pub child: EsProcess,
+}
+
+#[derive(Debug)]
 pub struct EsEventOpen {
     pub fflag: u32,
     pub file: EsFile,
@@ -195,6 +200,7 @@ pub enum SupportedEsEvent {
     AuthUnlink = 8,
     NotifyExec = 9,
     NotifyOpen = 10,
+    NotifyFork = 11,
     NotifyLink = 19,
     NotifyRename = 25,
     NotifySignal = 31,
@@ -223,8 +229,8 @@ pub enum EsEvent {
     AuthUnlink(EsEventUnlink),
     NotifyExec(EsEventExec),
     NotifyOpen(EsEventOpen),
-    /*NotifyFork,
-    NotifyClose,
+    NotifyFork(EsEventFork),
+    /*NotifyClose,
     NotifyCreate,
     NotifyExchangedata,
     NotifyExit,
@@ -406,6 +412,7 @@ pub fn raw_event_to_supportedesevent(event_type: u64) -> Option<SupportedEsEvent
         8 => SupportedEsEvent::AuthUnlink,
         9 => SupportedEsEvent::NotifyExec,
         10 => SupportedEsEvent::NotifyOpen,
+        11 => SupportedEsEvent::NotifyFork,
         19 => SupportedEsEvent::NotifyLink,
         25 => SupportedEsEvent::NotifyRename,
         31 => SupportedEsEvent::NotifySignal,
@@ -427,6 +434,7 @@ pub fn supportedesevent_to_raw_event(event_type: &SupportedEsEvent) -> u32 {
         SupportedEsEvent::AuthUnlink => 8,
         SupportedEsEvent::NotifyExec => 9,
         SupportedEsEvent::NotifyOpen => 10,
+        SupportedEsEvent::NotifyFork => 11,
         SupportedEsEvent::NotifyLink => 19,
         SupportedEsEvent::NotifyRename => 25,
         SupportedEsEvent::NotifySignal => 31,
@@ -584,6 +592,11 @@ fn parse_es_event(event_type: SupportedEsEvent, event: es_events_t, action_type:
                     EsActionType::Notify => EsEvent::NotifyReadDir(event),
                     EsActionType::Auth => EsEvent::AuthReadDir(event),
                 }
+            },
+            SupportedEsEvent::NotifyFork => {
+                EsEvent::NotifyFork(EsEventFork {
+                    child: parse_es_process(&*event.fork.child),
+                })
             },
         }
     }
