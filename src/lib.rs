@@ -21,6 +21,10 @@ use block::*;
 
 // Values
 use {
+    es_clear_cache_result_t_ES_CLEAR_CACHE_RESULT_SUCCESS as ES_CLEAR_CACHE_RESULT_SUCCESS,
+    es_clear_cache_result_t_ES_CLEAR_CACHE_RESULT_ERR_INTERNAL as ES_CLEAR_CACHE_RESULT_ERR_INTERNAL,
+    es_clear_cache_result_t_ES_CLEAR_CACHE_RESULT_ERR_THROTTLE as ES_CLEAR_CACHE_RESULT_ERR_THROTTLE,
+
     es_return_t_ES_RETURN_SUCCESS as ES_RETURN_SUCCESS,
     
     es_auth_result_t_ES_AUTH_RESULT_ALLOW as ES_AUTH_RESULT_ALLOW,
@@ -189,6 +193,13 @@ pub enum EsNewClientResult {
     ErrorNotPrivileged,
     ErrorTooManyClients,
     Unknown,
+}
+
+#[derive(Debug)]
+pub enum ClearCacheResult {
+    Success,
+    ErrorInternal,
+    ErrorThrottle,
 }
 
 #[derive(Debug)]
@@ -538,6 +549,33 @@ unsafe impl Send for EsClient {}
 unsafe impl Sync for EsClient {}
 
 impl EsClient {
+    // Clear the cache of decisions. This should be done sparringly as it affects ALL
+    // client for the entire system. Doing this too frequently will impact system performace
+    pub fn clear_cache(&self) -> Result <(), ClearCacheResult> {
+        let client = (*self.client).lock();
+        let client = match client {
+            Ok(c) => c,
+            Err(e) => {
+                error!("Could not acquire lock for client: {}", e);
+                return Err(ClearCacheResult::ErrorInternal)
+            },
+        };
+
+        let response = unsafe {
+            es_clear_cache(client.client)
+        };
+
+        match response {
+            ES_CLEAR_CACHE_RESULT_SUCCESS => Ok(()),
+            ES_CLEAR_CACHE_RESULT_ERR_INTERNAL => Err(ClearCacheResult::ErrorInternal),
+            ES_CLEAR_CACHE_RESULT_ERR_THROTTLE => Err(ClearCacheResult::ErrorThrottle),
+            _ => {
+                error!("Unknown response from es_clear_cache. Perhaps the library needs updating?");
+                Err(ClearCacheResult::ErrorInternal)
+            }
+        }
+    }
+
     // Start receiving callbacks for specified events
     pub fn subscribe_to_events(&self, events: &Vec<SupportedEsEvent>) -> bool {
         if events.len() > 128 {
