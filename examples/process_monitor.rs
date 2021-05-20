@@ -32,10 +32,18 @@ fn main() {
 
         match &message.event {
             EsEvent::NotifyExec(event) => {
-                println!("Type: Exec, PID: {}, Path: {}, CDHash: {}, Args: {}", event.target.pid, event.target.executable.path, event.target.cdhash, event.args.join(" "));
+                match serde_json::to_string(&event) {
+                    Ok(json) => println!("{}", json),
+                    Err(e) => error!("Error serializing event: {}", e)
+                }
+                //println!("Type: Exec, PID: {}, Path: {}, CDHash: {}, Args: {}", event.target.pid, event.target.executable.path, event.target.cdhash, event.args.join(" "));
             },
             EsEvent::NotifyFork(event) => {
-                println!("Type: Fork, PID: {}, Path: {}, CDHash: {}", event.child.pid, event.child.executable.path, event.child.cdhash);
+                match serde_json::to_string(&event) {
+                    Ok(json) => println!("{}", json),
+                    Err(e) => error!("Error serializing event: {}", e)
+                }
+                //println!("Type: Fork, PID: {}, Path: {}, CDHash: {}", event.child.pid, event.child.executable.path, event.child.cdhash);
             },
             _ => {
                 continue;

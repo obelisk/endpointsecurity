@@ -9,16 +9,12 @@ keywords = ["security", "macos", "endpoint"]
 readme = "README.md"
 homepage = "https://github.com/obelisk/endpointsecurity"
 
-[[bin]]
-path = "examples/process_monitor.rs"
-name = "process_monitor"
-
-[[bin]]
-path = "examples/signal_intercept.rs"
-name = "signal_intercept"
-
 [dependencies]
 block = "0.1.6"
 env_logger = "0.7.1"
 libc = "0.2.0"
 log = "0.4.8"
+serde = {version = "1", features = ["derive"]}
+
+[dev-dependencies]
+serde_json = "1"
