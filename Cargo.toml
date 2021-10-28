@@ -1,6 +1,6 @@
 [package]
 name = "endpointsecurity"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["Mitchell Grenier <mitchell@confurious.io>"]
 edition = "2018"
 description = "Nice (ish) bindings for the EndpointSecurity framework on macOS"

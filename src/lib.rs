@@ -57,14 +57,14 @@ pub enum FileModes {
     Append = 0x00000008,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EsFile {
     pub path: String,
     pub path_truncated: bool,
 //    pub stat: stat,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EsProcess {
     //pub audit_token: rust_audit_token,
     pub ppid: u32,
@@ -83,51 +83,51 @@ pub struct EsProcess {
     //pub start_time: timeval,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EsEventExec {
     pub target: EsProcess,
     pub args: Vec<String>,
     // __bindgen_anon_1: es_event_exec_t__bindgen_ty_1,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EsEventFork {
     pub child: EsProcess,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EsEventClose {
     pub modified: bool,
     pub target: EsFile,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EsEventOpen {
     pub fflag: u32,
     pub file: EsFile,
     // reserved: [u8; 64usize],
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EsEventKextload {
     pub identifier: String,
     // reserved: [u8; 64usize],
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EsEventKextunload {
     pub identifier: String,
     // reserved: [u8; 64usize],
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EsEventSignal {
     pub signal: i32,
     pub target: EsProcess,
     //pub reserved: [u8; 64usize],
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EsEventLink {
     pub source: EsFile,
     pub target_dir: EsFile,
@@ -135,33 +135,33 @@ pub struct EsEventLink {
     //pub reserved: [u8; 64usize],
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EsEventUnlink {
     pub target: EsFile,
     pub parent_dir: EsFile,
     //pub reserved: [u8; 64usize],
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum EsDestinationType {
     ExistingFile = 0,
     NewPath = 1,
     Unknown = 2,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EsRenameDestinationNewPath {
     pub dir: EsFile,
     pub filename: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EsRenameDestination {
     pub existing_file: EsFile,
     pub new_path: EsRenameDestinationNewPath,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EsEventRename {
     pub source: EsFile,
     pub destination_type: EsDestinationType,
@@ -169,7 +169,7 @@ pub struct EsEventRename {
     //pub reserved: [u8; 64usize],
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EsEventReadDir {
     pub target: EsFile,
 }
@@ -185,7 +185,7 @@ pub enum EsRespondResult {
     UnknownResponse,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum EsNewClientResult {
     Success,
     ErrorInvalidArgument,
@@ -204,7 +204,7 @@ pub enum ClearCacheResult {
     ErrorThrottle,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EsClientError {
     pub details: String,
     pub error_type: EsNewClientResult,
@@ -246,7 +246,7 @@ impl fmt::Display for SupportedEsEvent {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum EsEvent {
     AuthExec(EsEventExec),
     AuthOpen(EsEventOpen),
@@ -351,25 +351,25 @@ pub enum EsEvent {
     Last,*/
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum EsCacheResult {
     Yes,
     No,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum EsActionType {
     Auth,
     Notify,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum EsAuthResult {
     Allow,
     Deny,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum EsResultType {
     Auth,
     Flags,
@@ -381,18 +381,18 @@ pub struct EsEventId {
     pub reserved: [u8; 32usize],
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EsResultNotifyResult {
     pub flags: u32,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EsResult {
     pub result_type: EsResultType,
     pub result: EsResultNotifyResult,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum EsAction {
     Auth(EsEventId),
     Notify(EsResult),
@@ -402,7 +402,7 @@ pub enum EsAction {
 // to the es_message
 unsafe impl Send for EsMessage {}
 unsafe impl Sync for EsMessage {}
-#[derive(Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct EsMessage {
     pub version: u32,
     pub time: u64,
@@ -413,6 +413,7 @@ pub struct EsMessage {
     pub action: EsAction,
     pub action_type: EsActionType,
     pub event: EsEvent,
+    #[serde(skip_serializing)]
     raw_message: *const es_message_t,
 }
 
