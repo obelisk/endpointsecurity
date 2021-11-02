@@ -1,6 +1,6 @@
 [package]
 name = "endpointsecurity"
-version = "0.2.1"
+version = "0.3.0"
 authors = ["Mitchell Grenier <mitchell@confurious.io>"]
 edition = "2018"
 description = "Nice (ish) bindings for the EndpointSecurity framework on macOS"
@@ -10,6 +10,7 @@ readme = "README.md"
 homepage = "https://github.com/obelisk/endpointsecurity"
 
 [dependencies]
+crossbeam-channel = "0.5"
 block = "0.1.6"
 env_logger = "0.7.1"
 libc = "0.2.0"

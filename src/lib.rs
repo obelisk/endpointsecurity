@@ -12,7 +12,7 @@ extern crate libc;
 
 use std::collections::HashSet;
 use std::fmt;
-use std::sync::mpsc::Sender;
+use crossbeam_channel::Sender;
 use std::sync::{Arc, Mutex};
 
 use serde::{Deserialize, Serialize};

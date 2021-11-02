@@ -1,7 +1,7 @@
 #[macro_use] extern crate log;
 
 use endpointsecurity::*;
-use std::sync::mpsc::channel;
+use crossbeam_channel::unbounded as channel;
 
 fn main() {
     env_logger::init();
