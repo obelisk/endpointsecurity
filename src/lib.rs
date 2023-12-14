@@ -8,11 +8,12 @@ include!("./eps_bindings.rs");
 mod parsers;
 
 extern crate libc;
-#[macro_use] extern crate log;
+#[macro_use]
+extern crate log;
 
+use crossbeam_channel::Sender;
 use std::collections::HashSet;
 use std::fmt;
-use crossbeam_channel::Sender;
 use std::sync::{Arc, Mutex};
 
 use serde::{Deserialize, Serialize};
@@ -23,29 +24,25 @@ use block::*;
 
 // Values
 use {
-    es_clear_cache_result_t_ES_CLEAR_CACHE_RESULT_SUCCESS as ES_CLEAR_CACHE_RESULT_SUCCESS,
-    es_clear_cache_result_t_ES_CLEAR_CACHE_RESULT_ERR_INTERNAL as ES_CLEAR_CACHE_RESULT_ERR_INTERNAL,
-    es_clear_cache_result_t_ES_CLEAR_CACHE_RESULT_ERR_THROTTLE as ES_CLEAR_CACHE_RESULT_ERR_THROTTLE,
-
-    es_return_t_ES_RETURN_SUCCESS as ES_RETURN_SUCCESS,
-    
     es_auth_result_t_ES_AUTH_RESULT_ALLOW as ES_AUTH_RESULT_ALLOW,
     es_auth_result_t_ES_AUTH_RESULT_DENY as ES_AUTH_RESULT_DENY,
-
-    es_new_client_result_t_ES_NEW_CLIENT_RESULT_SUCCESS as ES_NEW_CLIENT_SUCCESS,
-    es_new_client_result_t_ES_NEW_CLIENT_RESULT_ERR_INVALID_ARGUMENT as ES_NEW_CLIENT_ERROR_INVALID_ARGUMENT,
+    es_clear_cache_result_t_ES_CLEAR_CACHE_RESULT_ERR_INTERNAL as ES_CLEAR_CACHE_RESULT_ERR_INTERNAL,
+    es_clear_cache_result_t_ES_CLEAR_CACHE_RESULT_ERR_THROTTLE as ES_CLEAR_CACHE_RESULT_ERR_THROTTLE,
+    es_clear_cache_result_t_ES_CLEAR_CACHE_RESULT_SUCCESS as ES_CLEAR_CACHE_RESULT_SUCCESS,
     es_new_client_result_t_ES_NEW_CLIENT_RESULT_ERR_INTERNAL as ES_NEW_CLIENT_ERROR_INTERNAL,
+    es_new_client_result_t_ES_NEW_CLIENT_RESULT_ERR_INVALID_ARGUMENT as ES_NEW_CLIENT_ERROR_INVALID_ARGUMENT,
     es_new_client_result_t_ES_NEW_CLIENT_RESULT_ERR_NOT_ENTITLED as ES_NEW_CLIENT_ERROR_NOT_ENTITLED,
     es_new_client_result_t_ES_NEW_CLIENT_RESULT_ERR_NOT_PERMITTED as ES_NEW_CLIENT_ERROR_NOT_PERMITTED,
     es_new_client_result_t_ES_NEW_CLIENT_RESULT_ERR_NOT_PRIVILEGED as ES_NEW_CLIENT_ERROR_NOT_PRIVILEGED,
     es_new_client_result_t_ES_NEW_CLIENT_RESULT_ERR_TOO_MANY_CLIENTS as ES_NEW_CLIENT_ERROR_TOO_MANY_CLIENTS,
-
-    es_respond_result_t_ES_RESPOND_RESULT_SUCCESS as ES_RESPOND_RESULT_SUCCESS,
-    es_respond_result_t_ES_RESPOND_RESULT_ERR_INVALID_ARGUMENT as ES_RESPONSE_RESULT_ERROR_INVALID_ARGUMENT,
-    es_respond_result_t_ES_RESPOND_RESULT_ERR_INTERNAL as ES_RESPOND_RESULT_ERROR_INTERNAL,
-    es_respond_result_t_ES_RESPOND_RESULT_NOT_FOUND as ES_RESPOND_RESULT_NOT_FOUND,
+    es_new_client_result_t_ES_NEW_CLIENT_RESULT_SUCCESS as ES_NEW_CLIENT_SUCCESS,
     es_respond_result_t_ES_RESPOND_RESULT_ERR_DUPLICATE_RESPONSE as ES_RESPOND_RESULT_ERROR_DUPLICATE_RESPONSE,
     es_respond_result_t_ES_RESPOND_RESULT_ERR_EVENT_TYPE as ES_RESPONSE_RESULT_ERROR_EVENT_TYPE,
+    es_respond_result_t_ES_RESPOND_RESULT_ERR_INTERNAL as ES_RESPOND_RESULT_ERROR_INTERNAL,
+    es_respond_result_t_ES_RESPOND_RESULT_ERR_INVALID_ARGUMENT as ES_RESPONSE_RESULT_ERROR_INVALID_ARGUMENT,
+    es_respond_result_t_ES_RESPOND_RESULT_NOT_FOUND as ES_RESPOND_RESULT_NOT_FOUND,
+    es_respond_result_t_ES_RESPOND_RESULT_SUCCESS as ES_RESPOND_RESULT_SUCCESS,
+    es_return_t_ES_RETURN_SUCCESS as ES_RETURN_SUCCESS,
 };
 
 #[repr(C)]
@@ -61,7 +58,7 @@ pub enum FileModes {
 pub struct EsFile {
     pub path: String,
     pub path_truncated: bool,
-//    pub stat: stat,
+    //    pub stat: stat,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -212,7 +209,7 @@ pub struct EsClientError {
 
 impl fmt::Display for EsClientError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f,"{}", self.details)
+        write!(f, "{}", self.details)
     }
 }
 
@@ -417,14 +414,13 @@ pub struct EsMessage {
     raw_message: *const es_message_t,
 }
 
-
 struct EsClientHidden {
     client: *mut es_client_t,
     active_subscriptions: HashSet<SupportedEsEvent>,
 }
 
 // Unfortunately this system is a little over zealous
-// because it means we have to lock even to read active subscriptions. 
+// because it means we have to lock even to read active subscriptions.
 // Optimize this later if it provides too much contention with responding
 // to messages.
 #[derive(Clone)]
@@ -455,7 +451,7 @@ pub fn raw_event_to_supportedesevent(event_type: u64) -> Option<SupportedEsEvent
         42 => SupportedEsEvent::AuthLink,
         67 => SupportedEsEvent::AuthReadDir,
         68 => SupportedEsEvent::NotifyReadDir,
-        _ => return None
+        _ => return None,
     })
 }
 
@@ -484,9 +480,16 @@ pub fn supportedesevent_to_raw_event(event_type: &SupportedEsEvent) -> u32 {
     }
 }
 
-fn es_notify_callback(_client: *mut es_client_t, message: *mut es_message_t, tx: Sender<EsMessage>) {
+fn es_notify_callback(
+    _client: *mut es_client_t,
+    message: *mut es_message_t,
+    tx: Sender<EsMessage>,
+) {
     let message = match parse_es_message(message) {
-        Err(e) => { println!("Could not parse message: {}", e); return},
+        Err(e) => {
+            println!("Could not parse message: {}", e);
+            return;
+        }
         Ok(x) => x,
     };
 
@@ -500,9 +503,12 @@ pub fn create_es_client(tx: Sender<EsMessage>) -> Result<EsClient, EsClientError
     let mut client: *mut es_client_t = std::ptr::null_mut();
     let client_ptr: *mut *mut es_client_t = &mut client;
 
-    let handler = ConcreteBlock::new(move |client: *mut es_client_t, message: *mut es_message_t| {
-        es_notify_callback(client, message, tx.clone());
-    }).copy();
+    let handler = ConcreteBlock::new(
+        move |client: *mut es_client_t, message: *mut es_message_t| {
+            es_notify_callback(client, message, tx.clone());
+        },
+    )
+    .copy();
 
     match unsafe { es_new_client(client_ptr, &*handler as *const Block<_, _> as *const std::ffi::c_void) } {
         ES_NEW_CLIENT_SUCCESS => {
@@ -554,19 +560,17 @@ unsafe impl Sync for EsClient {}
 impl EsClient {
     // Clear the cache of decisions. This should be done sparringly as it affects ALL
     // client for the entire system. Doing this too frequently will impact system performace
-    pub fn clear_cache(&self) -> Result <(), ClearCacheResult> {
+    pub fn clear_cache(&self) -> Result<(), ClearCacheResult> {
         let client = (*self.client).lock();
         let client = match client {
             Ok(c) => c,
             Err(e) => {
                 error!("Could not acquire lock for client: {}", e);
-                return Err(ClearCacheResult::ErrorInternal)
-            },
+                return Err(ClearCacheResult::ErrorInternal);
+            }
         };
 
-        let response = unsafe {
-            es_clear_cache(client.client)
-        };
+        let response = unsafe { es_clear_cache(client.client) };
 
         match response {
             ES_CLEAR_CACHE_RESULT_SUCCESS => Ok(()),
@@ -591,8 +595,11 @@ impl EsClient {
             Ok(c) => c,
             Err(_) => return false,
         };
-   
-        let events:Vec<&SupportedEsEvent> = events.iter().filter(|x| !client.active_subscriptions.contains(x)).collect();
+
+        let events: Vec<&SupportedEsEvent> = events
+            .iter()
+            .filter(|x| !client.active_subscriptions.contains(x))
+            .collect();
         if events.len() == 0 {
             debug!(target: "endpointsecurity-rs", "No new events being subscribed to");
             return true;
@@ -605,14 +612,14 @@ impl EsClient {
             i += 1;
         }
 
-        unsafe {   
+        unsafe {
             match es_subscribe(client.client, &c_events as *const u32, events.len() as u32) {
                 ES_RETURN_SUCCESS => {
                     for event in events {
-                        client.active_subscriptions.insert(*event); 
+                        client.active_subscriptions.insert(*event);
                     }
                     true
-                },
+                }
                 _ => false,
             }
         }
@@ -631,7 +638,10 @@ impl EsClient {
             Err(_) => return false,
         };
 
-        let events:Vec<&SupportedEsEvent> = events.iter().filter(|x| client.active_subscriptions.contains(x)).collect();
+        let events: Vec<&SupportedEsEvent> = events
+            .iter()
+            .filter(|x| client.active_subscriptions.contains(x))
+            .collect();
         if events.len() == 0 {
             debug!(target: "endpointsecurity-rs", "Not subscribed to any events request to unsubscribe from");
             return true;
@@ -648,10 +658,10 @@ impl EsClient {
             match es_unsubscribe(client.client, &c_events as *const u32, events.len() as u32) {
                 ES_RETURN_SUCCESS => {
                     for event in events {
-                        client.active_subscriptions.remove(event); 
+                        client.active_subscriptions.remove(event);
                     }
                     true
-                },
+                }
                 _ => false,
             }
         }
@@ -663,9 +673,9 @@ impl EsClient {
             println!("Too many events to unsubscribe to!");
             return false;
         }
-        let new_subscriptions:Vec<SupportedEsEvent>;
-        let remove_subscriptions:Vec<SupportedEsEvent>;
-        
+        let new_subscriptions: Vec<SupportedEsEvent>;
+        let remove_subscriptions: Vec<SupportedEsEvent>;
+
         {
             let client = (*self.client).lock();
             let client = match client {
@@ -674,10 +684,19 @@ impl EsClient {
             };
 
             // Filter out all subscriptions that we already have
-            new_subscriptions = events.iter().filter(|x| !client.active_subscriptions.contains(x)).copied().collect();
-            
+            new_subscriptions = events
+                .iter()
+                .filter(|x| !client.active_subscriptions.contains(x))
+                .copied()
+                .collect();
+
             // For all subscriptions we have, keep them in this remove list if they are not in our new list
-            remove_subscriptions = client.active_subscriptions.iter().filter(|x| !events.contains(x)).copied().collect();
+            remove_subscriptions = client
+                .active_subscriptions
+                .iter()
+                .filter(|x| !events.contains(x))
+                .copied()
+                .collect();
             if !new_subscriptions.is_empty() {
                 info!(target: "endpointsecurity-rs", "Adding subscriptions for: {}",
                     new_subscriptions.iter().fold(String::from(""), |acc, x| acc + &x.to_string() + ", "));
@@ -688,10 +707,16 @@ impl EsClient {
                     remove_subscriptions.iter().fold(String::from(""), |acc, x| acc + &x.to_string() + ", "));
             }
         }
-        self.unsubscribe_to_events(&remove_subscriptions) && self.subscribe_to_events(&new_subscriptions)
+        self.unsubscribe_to_events(&remove_subscriptions)
+            && self.subscribe_to_events(&new_subscriptions)
     }
 
-    pub fn respond_to_flags_event(&self, message: &EsMessage, authorized_flags: u32, should_cache: &EsCacheResult) -> EsRespondResult {
+    pub fn respond_to_flags_event(
+        &self,
+        message: &EsMessage,
+        authorized_flags: u32,
+        should_cache: &EsCacheResult,
+    ) -> EsRespondResult {
         let cache = match should_cache {
             EsCacheResult::Yes => true,
             EsCacheResult::No => false,
@@ -703,7 +728,9 @@ impl EsClient {
             Err(_) => return EsRespondResult::UnknownResponse, // TODO Fix this
         };
 
-        match  unsafe { es_respond_flags_result(client.client, message.raw_message, authorized_flags, cache) } {
+        match unsafe {
+            es_respond_flags_result(client.client, message.raw_message, authorized_flags, cache)
+        } {
             ES_RESPOND_RESULT_SUCCESS => EsRespondResult::Sucess,
             ES_RESPONSE_RESULT_ERROR_INVALID_ARGUMENT => EsRespondResult::ErrorInvalidArgument,
             ES_RESPOND_RESULT_ERROR_INTERNAL => EsRespondResult::ErrorInternal,
@@ -714,7 +741,12 @@ impl EsClient {
         }
     }
 
-    pub fn respond_to_auth_event(&self, message: &EsMessage, response: &EsAuthResult, should_cache: &EsCacheResult) -> EsRespondResult {
+    pub fn respond_to_auth_event(
+        &self,
+        message: &EsMessage,
+        response: &EsAuthResult,
+        should_cache: &EsCacheResult,
+    ) -> EsRespondResult {
         let cache = match should_cache {
             EsCacheResult::Yes => true,
             EsCacheResult::No => false,
@@ -730,8 +762,9 @@ impl EsClient {
             Ok(c) => c,
             Err(_) => return EsRespondResult::UnknownResponse, // TODO Fix this
         };
-    
-        match  unsafe { es_respond_auth_result(client.client, message.raw_message, response, cache) } {
+
+        match unsafe { es_respond_auth_result(client.client, message.raw_message, response, cache) }
+        {
             ES_RESPOND_RESULT_SUCCESS => EsRespondResult::Sucess,
             ES_RESPONSE_RESULT_ERROR_INVALID_ARGUMENT => EsRespondResult::ErrorInvalidArgument,
             ES_RESPOND_RESULT_ERROR_INTERNAL => EsRespondResult::ErrorInternal,

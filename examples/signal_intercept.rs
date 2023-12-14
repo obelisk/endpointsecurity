@@ -1,7 +1,8 @@
-#[macro_use] extern crate log;
+#[macro_use]
+extern crate log;
 
-use endpointsecurity::*;
 use crossbeam_channel::unbounded as channel;
+use endpointsecurity::*;
 
 fn main() {
     env_logger::init();
@@ -39,7 +40,11 @@ fn main() {
                 // Backout of all signals that don't affect EsClients as quickly as possible
                 // to reduce impact to system responsiveness
                 if !event.target.is_es_client {
-                    client.respond_to_auth_event(&message, &EsAuthResult::Allow, &EsCacheResult::No);
+                    client.respond_to_auth_event(
+                        &message,
+                        &EsAuthResult::Allow,
+                        &EsCacheResult::No,
+                    );
                     continue;
                 }
 
@@ -48,10 +53,10 @@ fn main() {
                     println!("Received a signal to my EsClient, disallowing that!");
                     client.respond_to_auth_event(&message, &EsAuthResult::Deny, &EsCacheResult::No);
                 }
-                
+
                 // This is a signal to someone else's EsClient. Don't touch it
                 client.respond_to_auth_event(&message, &EsAuthResult::Allow, &EsCacheResult::No);
-            },
+            }
             _ => {
                 continue;
             }
