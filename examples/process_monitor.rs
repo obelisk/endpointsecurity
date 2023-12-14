@@ -1,7 +1,8 @@
-#[macro_use] extern crate log;
+#[macro_use]
+extern crate log;
 
-use endpointsecurity::*;
 use crossbeam_channel::unbounded as channel;
+use endpointsecurity::*;
 
 fn main() {
     env_logger::init();
@@ -16,7 +17,10 @@ fn main() {
         }
     };
 
-    if !client.set_subscriptions_to(&vec![SupportedEsEvent::NotifyExec, SupportedEsEvent::NotifyFork]) {
+    if !client.set_subscriptions_to(&vec![
+        SupportedEsEvent::NotifyExec,
+        SupportedEsEvent::NotifyFork,
+    ]) {
         error!("Could not subscribe to NotifyExec event (not sure why)");
         return;
     }
@@ -34,17 +38,17 @@ fn main() {
             EsEvent::NotifyExec(event) => {
                 match serde_json::to_string(&event) {
                     Ok(json) => println!("{}", json),
-                    Err(e) => error!("Error serializing event: {}", e)
+                    Err(e) => error!("Error serializing event: {}", e),
                 }
                 //println!("Type: Exec, PID: {}, Path: {}, CDHash: {}, Args: {}", event.target.pid, event.target.executable.path, event.target.cdhash, event.args.join(" "));
-            },
+            }
             EsEvent::NotifyFork(event) => {
                 match serde_json::to_string(&event) {
                     Ok(json) => println!("{}", json),
-                    Err(e) => error!("Error serializing event: {}", e)
+                    Err(e) => error!("Error serializing event: {}", e),
                 }
                 //println!("Type: Fork, PID: {}, Path: {}, CDHash: {}", event.child.pid, event.child.executable.path, event.child.cdhash);
-            },
+            }
             _ => {
                 continue;
             }
